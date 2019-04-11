@@ -1,0 +1,109 @@
+replicaCount: 3
+
+image:
+  repository: vault
+  tag: 1.1.0
+  pullPolicy: IfNotPresent
+
+service:
+  name: vault
+  type: ClusterIP
+  loadBalancerSourceRanges: []
+  externalPort: 8200
+  port: 8200
+  clusterPort: 8201
+  annotations: {}
+
+ingress:
+  enabled: true
+  labels: {}
+  hosts:
+   - vault.mycompany.com
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/secure-backends: "true"
+    kubernetes.io/ingress.class: nginx
+  tls:
+    - secretName: mycompany.com-tls
+      hosts:
+        - vault.mycompany.com
+
+resources: {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+affinity: |
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        topologyKey: failure-domain.beta.kubernetes.io/zone
+        labelSelector:
+          matchLabels:
+            app: {{ template "vault.fullname" . }}
+            release: {{ .Release.Name }}
+
+tolerations: []
+
+annotations: {}
+
+labels: {}
+
+podAnnotations:
+  iam.amazonaws.com/role: k8s_vault
+
+vault:
+  dev: false
+  customSecrets:
+    - secretName: mycompany.com-tls
+      mountPath: /vault/tls
+
+  extraContainers: {}
+  extraVolumes: {}
+  extraInitContainers: {}
+  logLevel: "info"
+  liveness:
+    aliveIfUninitialized: true
+    aliveIfSealed: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readiness:
+    readyIfSealed: true
+    readyIfStandby: true
+    readyIfUninitialized: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  config:
+    api_addr: "vault.mycompany.com:8200"
+    cluster_addr: "vault.mycompany.com:8201"
+    ui: true
+    listener:
+      tcp:
+        address: '[::]:8200'
+        cluster_address: '[::]:8201'
+        tls_disable: false
+        tls_prefer_server_cipher_suites: true
+        tls_cipher_suites: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_RSA_WITH_AES_128_GCM_SHA256,TLS_RSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA
+        tls_cert_file: /vault/tls/tls.crt
+        tls_key_file: /vault/tls/tls.key
+    storage:
+      s3:
+        bucket: "vault-tools"
+        region: "us-east-1"
+    ha_storage:
+      dynamodb:
+        table: "vault-tools"
+        ha_enabled: "true"
+        region: "us-east-1"
+    seal:
+      awskms:
+        region: "us-east-1"
+        kms_key_id: "cae1a0a4-0649-48ba-ad8f-e6820ae056f3"
+    max_lease_ttl: "90000h"
+    default_lease_ttl: "90000h"
